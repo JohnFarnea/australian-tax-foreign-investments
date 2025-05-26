@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Australian Tax Foreign Investments</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Australian Tax Foreign Investments</a>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="mb-0">Calculate Tax Liability for Foreign Share Trading</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <h4>Instructions</h4>
+                            <p>Upload your opening balance and trade transactions files to calculate your tax liability.</p>
+                            <p><strong>Note:</strong> All data is processed locally and not stored on any server.</p>
+                        </div>
+
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <div class="mb-4">
+                                <h5>Opening Balance File</h5>
+                                <p class="text-muted">Upload a CSV or Excel file containing your opening balance of shares.</p>
+                                <p class="text-muted">Required columns: Symbol, Quantity, Total Cost in AUD</p>
+                                <div class="input-group">
+                                    <input type="file" class="form-control" id="openingBalance" name="opening_balance" accept=".csv,.xlsx,.xls" required>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <h5>Trade Transactions File</h5>
+                                <p class="text-muted">Upload a CSV or Excel file containing your share trades for the year.</p>
+                                <p class="text-muted">Required columns: Date, Symbol, Quantity, Unit Price, Total Gross Value, Commission, Net Value, Currency</p>
+                                <div class="input-group">
+                                    <input type="file" class="form-control" id="transactions" name="transactions" accept=".csv,.xlsx,.xls" required>
+                                </div>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg" id="calculateBtn">
+                                    <span class="spinner-border spinner-border-sm d-none" id="loadingSpinner" role="status" aria-hidden="true"></span>
+                                    Calculate Tax Liability
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">
+                        <h3 class="mb-0">About Tax Calculation</h3>
+                    </div>
+                    <div class="card-body">
+                        <h5>Calculation Method</h5>
+                        <p>For a company classified as a Trader, the rules for calculation of tax are as follows:</p>
+                        <ul>
+                            <li>Gross Trading Income = Sales - Cost of Shares Sold</li>
+                            <li>Cost of Shares Sold = Opening Balance of Shares + Purchases - Closing Balance of Shares</li>
+                            <li>Opening Balance of Shares and Closing Balance of Shares are the Values at time of Purchase - i.e. the Cost Value</li>
+                            <li>This ensures only Realised Gains are reported in Gross Trading Income</li>
+                        </ul>
+
+                        <h5>Currency Conversion</h5>
+                        <p>Sales Values are translated from the Foreign Currency to AUD at the time of the Sale Transaction.</p>
+                        <p>Purchases Values are translated from the Foreign Currency to AUD at the time of the Purchase Transaction.</p>
+                        <p>Exchange rates are obtained from the Reserve Bank of Australia.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white mt-5 py-3">
+        <div class="container text-center">
+            <p class="mb-0">Australian Tax Foreign Investments Calculator &copy; 2025</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
