@@ -24,22 +24,22 @@
                     <div class="card-body">
                         <div class="alert alert-info">
                             <h4>Instructions</h4>
-                            <p>Upload your opening balance and trade transactions files to calculate your tax liability.</p>
+                            <p>Upload your trade transactions file and optionally your opening balance file to calculate your tax liability.</p>
                             <p><strong>Note:</strong> All data is processed locally and not stored on any server.</p>
                         </div>
 
                         <form id="uploadForm" enctype="multipart/form-data">
                             <div class="mb-4">
-                                <h5>Opening Balance File</h5>
-                                <p class="text-muted">Upload a CSV or Excel file containing your opening balance of shares.</p>
+                                <h5>Opening Balance File <span class="badge bg-secondary">Optional</span></h5>
+                                <p class="text-muted">Upload a CSV or Excel file containing your opening balance of shares. Leave empty if you have no existing positions.</p>
                                 <p class="text-muted">Required columns: Symbol, Quantity, Total Cost in AUD</p>
                                 <div class="input-group">
-                                    <input type="file" class="form-control" id="openingBalance" name="opening_balance" accept=".csv,.xlsx,.xls" required>
+                                    <input type="file" class="form-control" id="openingBalance" name="opening_balance" accept=".csv,.xlsx,.xls">
                                 </div>
                             </div>
 
                             <div class="mb-4">
-                                <h5>Trade Transactions File</h5>
+                                <h5>Trade Transactions File <span class="badge bg-danger">Required</span></h5>
                                 <p class="text-muted">Upload a CSV or Excel file containing your share trades for the year.</p>
                                 <p class="text-muted">Required columns: Date, Symbol, Quantity, Unit Price, Total Gross Value, Commission, Net Value, Currency</p>
                                 <div class="input-group">
