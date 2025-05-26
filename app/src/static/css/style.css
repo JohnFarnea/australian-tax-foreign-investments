@@ -1,0 +1,52 @@
+/* Custom styles for the application */
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.result-card {
+    transition: transform 0.3s ease;
+    height: 100%;
+}
+
+.result-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.detail-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+.transaction-table {
+    font-size: 0.9rem;
+}
+
+.formula-display {
+    font-size: 1.2rem;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.formula-value {
+    font-weight: bold;
+    color: #0d6efd;
+}
+
+.card-header h4 {
+    margin-bottom: 0;
+}
+
+footer {
+    margin-top: 50px;
+}
