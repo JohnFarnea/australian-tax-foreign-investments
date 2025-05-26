@@ -1,79 +1,52 @@
 /* Custom styles for the application */
+
 body {
-    background-color: #f8f9fa;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
 }
 
-.navbar {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.navbar-brand {
+    font-weight: bold;
 }
 
-.card {
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    border: none;
-    border-radius: 8px;
-    margin-bottom: 20px;
-}
-
-.card-header {
-    border-radius: 8px 8px 0 0 !important;
-    padding: 15px 20px;
-}
-
-.btn-primary {
-    background-color: #0056b3;
-    border-color: #0056b3;
-    transition: all 0.3s ease;
-}
-
-.btn-primary:hover {
-    background-color: #003d7a;
-    border-color: #003d7a;
-}
-
-footer {
-    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* Results page styles */
 .result-card {
-    transition: all 0.3s ease;
+    transition: transform 0.3s ease;
+    height: 100%;
 }
 
 .result-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
 .detail-link {
     text-decoration: none;
     color: inherit;
+    display: block;
 }
 
-.detail-link:hover {
-    text-decoration: none;
-}
-
-/* Details page styles */
 .transaction-table {
     font-size: 0.9rem;
 }
 
-.transaction-table th {
-    background-color: #f1f1f1;
+.formula-display {
+    font-size: 1.2rem;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    margin-top: 10px;
+    text-align: center;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .card-body {
-        padding: 15px;
-    }
-    
-    h2 {
-        font-size: 1.5rem;
-    }
-    
-    h3 {
-        font-size: 1.3rem;
-    }
+.formula-value {
+    font-weight: bold;
+    color: #0d6efd;
+}
+
+.card-header h4 {
+    margin-bottom: 0;
+}
+
+footer {
+    margin-top: 50px;
 }

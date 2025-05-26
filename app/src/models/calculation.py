@@ -59,10 +59,19 @@ class TaxCalculator:
                 self.opening_balance = pd.DataFrame(columns=['Symbol', 'Quantity', 'Total Cost in AUD'])
             
             # Process transactions and calculate tax
-            closing_balance, cost_of_shares_sold, sales_aud, sales_details = self._process_transactions()
+            closing_balance, cost_of_shares_sold, sales_aud, sales_details, purchases_details = self._process_transactions()
             
             # Calculate gross trading income
             gross_trading_income = sales_aud - cost_of_shares_sold
+            
+            # Calculate opening stock value (total cost from opening balance)
+            opening_stock_value = self.opening_balance['Total Cost in AUD'].sum() if not self.opening_balance.empty else 0.0
+            
+            # Calculate closing stock value (total cost from closing balance)
+            closing_stock_value = closing_balance['Total Cost in AUD'].sum() if not closing_balance.empty else 0.0
+            
+            # Calculate purchases value (opening stock + purchases - closing stock = cost of goods sold)
+            purchases_value = cost_of_shares_sold + closing_stock_value - opening_stock_value
             
             # Prepare results
             self.results = {
@@ -72,6 +81,10 @@ class TaxCalculator:
                 'sales_aud': sales_aud,
                 'gross_trading_income': gross_trading_income,
                 'sales_details': sales_details,
+                'purchases_details': purchases_details,
+                'opening_stock_value': opening_stock_value,
+                'closing_stock_value': closing_stock_value,
+                'purchases_value': purchases_value,
                 'calculation_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
             
@@ -80,12 +93,12 @@ class TaxCalculator:
         except Exception as e:
             return False, f"Error calculating tax: {str(e)}", {}
     
-    def _process_transactions(self) -> Tuple[pd.DataFrame, float, float, List[Dict[str, Any]]]:
+    def _process_transactions(self) -> Tuple[pd.DataFrame, float, float, List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Process all transactions and calculate closing balance, cost of shares sold, and sales in AUD.
         
         Returns:
-            Tuple of (closing_balance_df, cost_of_shares_sold, sales_aud, sales_details)
+            Tuple of (closing_balance_df, cost_of_shares_sold, sales_aud, sales_details, purchases_details)
         """
         # Initialize portfolio with opening balance
         portfolio = {}
@@ -108,6 +121,7 @@ class TaxCalculator:
         cost_of_shares_sold = 0.0
         sales_aud = 0.0
         sales_details = []
+        purchases_details = []
         
         # Process transactions in chronological order
         sorted_transactions = self.transactions.sort_values('Date')
@@ -129,16 +143,33 @@ class TaxCalculator:
                     if success:
                         # FIXED: Corrected currency conversion direction
                         purchase_value_aud = row['Net Value'] / rate
+                        exchange_rate = rate
                     else:
                         purchase_value_aud = row['Net Value']
+                        exchange_rate = 1.0
                 else:
                     purchase_value_aud = row['Net Value']
+                    exchange_rate = 1.0
                 
                 # Add new lot to portfolio
                 portfolio[symbol].append({
                     'quantity': quantity,
                     'cost_per_share': purchase_value_aud / quantity,
                     'total_cost': purchase_value_aud
+                })
+                
+                # Add to purchases details
+                purchases_details.append({
+                    'Date': date.strftime('%Y-%m-%d'),
+                    'Symbol': symbol,
+                    'Quantity': quantity,
+                    'Unit Price': row['Unit Price'],
+                    'Gross Value': row['Total Gross Value'],
+                    'Commission': abs(row['Commission']),
+                    'Net Value': row['Net Value'],
+                    'Currency': row['Currency'],
+                    'Exchange Rate': exchange_rate,
+                    'Value in AUD': purchase_value_aud
                 })
             
             # Handle sales
@@ -228,7 +259,7 @@ class TaxCalculator:
         
         closing_balance = pd.DataFrame(closing_balance_data)
         
-        return closing_balance, cost_of_shares_sold, sales_aud, sales_details
+        return closing_balance, cost_of_shares_sold, sales_aud, sales_details, purchases_details
     
     def get_results(self) -> Dict[str, Any]:
         """

@@ -26,6 +26,35 @@
                             <p class="mb-0">Calculation completed on: {{ results.calculation_date }}</p>
                         </div>
 
+                        <!-- High-level calculation formula display -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-primary text-white">
+                                <h4 class="mb-0">Calculation Formula</h4>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h5>Gross Trading Income = Sales - Cost of Goods Sold</h5>
+                                        <div class="formula-display">
+                                            <span class="formula-value">${{ "%.2f"|format(results.gross_trading_income) }}</span> = 
+                                            <span class="formula-value">${{ "%.2f"|format(results.sales_aud) }}</span> - 
+                                            <span class="formula-value">${{ "%.2f"|format(results.cost_of_shares_sold) }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h5>Cost of Goods Sold = Opening Stock + Purchases - Closing Stock</h5>
+                                        <div class="formula-display">
+                                            <span class="formula-value">${{ "%.2f"|format(results.cost_of_shares_sold) }}</span> = 
+                                            <span class="formula-value">${{ "%.2f"|format(results.opening_stock_value) }}</span> + 
+                                            <span class="formula-value">${{ "%.2f"|format(results.purchases_value) }}</span> - 
+                                            <span class="formula-value">${{ "%.2f"|format(results.closing_stock_value) }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sales and Cost of Goods Sold -->
                         <div class="row mt-4">
                             <div class="col-md-6">
                                 <a href="/details/sales_details" class="detail-link">
@@ -41,14 +70,63 @@
                             <div class="col-md-6">
                                 <div class="card result-card">
                                     <div class="card-body text-center">
-                                        <h4>Cost of Shares Sold</h4>
+                                        <h4>Cost of Goods Sold</h4>
                                         <h2 class="text-danger">${{ "%.2f"|format(results.cost_of_shares_sold) }}</h2>
-                                        <p class="text-muted">Calculated value</p>
+                                        <p class="text-muted">See breakdown below</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
+                        <!-- Cost of Goods Sold Breakdown -->
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <div class="card">
+                                    <div class="card-header bg-light">
+                                        <h4 class="mb-0">Cost of Goods Sold Breakdown</h4>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <a href="/details/opening_balance" class="detail-link">
+                                                    <div class="card result-card">
+                                                        <div class="card-body text-center">
+                                                            <h5>Opening Stock</h5>
+                                                            <h3 class="text-info">${{ "%.2f"|format(results.opening_stock_value) }}</h3>
+                                                            <p class="text-muted">Click for details</p>
+                                                        </div>
+                                                    </div>
+                                                </a>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <a href="/details/purchases_details" class="detail-link">
+                                                    <div class="card result-card">
+                                                        <div class="card-body text-center">
+                                                            <h5>Purchases</h5>
+                                                            <h3 class="text-info">${{ "%.2f"|format(results.purchases_value) }}</h3>
+                                                            <p class="text-muted">Click for details</p>
+                                                        </div>
+                                                    </div>
+                                                </a>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <a href="/details/closing_balance" class="detail-link">
+                                                    <div class="card result-card">
+                                                        <div class="card-body text-center">
+                                                            <h5>Closing Stock</h5>
+                                                            <h3 class="text-info">${{ "%.2f"|format(results.closing_stock_value) }}</h3>
+                                                            <p class="text-muted">Click for details</p>
+                                                        </div>
+                                                    </div>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Gross Trading Income -->
                         <div class="row mt-4">
                             <div class="col-md-12">
                                 <div class="card bg-light">
@@ -59,29 +137,6 @@
                                         </h1>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-
-                        <div class="row mt-4">
-                            <div class="col-md-6">
-                                <a href="/details/opening_balance" class="detail-link">
-                                    <div class="card result-card">
-                                        <div class="card-body text-center">
-                                            <h4>Opening Balance</h4>
-                                            <p class="text-muted">Click for details</p>
-                                        </div>
-                                    </div>
-                                </a>
-                            </div>
-                            <div class="col-md-6">
-                                <a href="/details/closing_balance" class="detail-link">
-                                    <div class="card result-card">
-                                        <div class="card-body text-center">
-                                            <h4>Closing Balance</h4>
-                                            <p class="text-muted">Click for details</p>
-                                        </div>
-                                    </div>
-                                </a>
                             </div>
                         </div>
 

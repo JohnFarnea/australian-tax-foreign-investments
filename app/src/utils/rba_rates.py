@@ -1,282 +1,194 @@
 """
-RBA exchange rate fetching and processing utilities.
+RBA exchange rate fetching and currency conversion utilities.
 """
-import requests
-import pandas as pd
 import os
+import pandas as pd
+import requests
 from datetime import datetime, timedelta
-import io
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Tuple, Dict, Any, Optional
 
 
 class RBAExchangeRates:
     """
-    Class for fetching and processing exchange rates from the Reserve Bank of Australia.
+    Class for fetching and processing RBA exchange rates.
     """
     
-    # RBA historical data URL
-    RBA_URL = "https://www.rba.gov.au/statistics/tables/csv/f11.1-data.csv"
-    # Local sample file path
-    SAMPLE_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 
-                                   "sample_data", "f11.1-data.csv")
-    
-    # Mapping from currency codes to RBA series IDs
-    CURRENCY_TO_SERIES_MAP = {
-        'USD': 'FXRUSD',
-        'EUR': 'FXREUR',
-        'JPY': 'FXRJY',
-        'GBP': 'FXRUKPS',
-        'CNY': 'FXRCR',
-        'KRW': 'FXRSKW',
-        'SGD': 'FXRSD',
-        'INR': 'FXRIRE',
-        'THB': 'FXRTB',
-        'NZD': 'FXRNZD',
-        'TWD': 'FXRNTD',
-        'MYR': 'FXRMR',
-        'IDR': 'FXRIR',
-        'VND': 'FXRVD',
-        'AED': 'FXRUAED',
-        'PGK': 'FXRPNGK',
-        'HKD': 'FXRHKD',
-        'CAD': 'FXRCD',
-        'ZAR': 'FXRSARD',
-        'CHF': 'FXRSF',
-        'PHP': 'FXRPHP',
-        'SDR': 'FXRSDR'
-    }
-    
-    def __init__(self, use_local_file=True):
-        self.rates_data = None
-        self.last_updated = None
+    def __init__(self, use_local_file=False):
+        """
+        Initialize RBA exchange rates.
+        
+        Args:
+            use_local_file: Whether to use local sample file instead of fetching from RBA website
+        """
+        self.rates_df = None
         self.use_local_file = use_local_file
-        self.currency_map = {}  # Maps column names to currency codes
+        self.rba_url = "https://www.rba.gov.au/statistics/tables/csv/f11.1-data.csv"
+        self.local_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 
+                                      "sample_data", "f11.1-data.csv")
+        
+        # Map currency codes to RBA series IDs
+        self.currency_to_series = {
+            'USD': 'FXRUSD',
+            'EUR': 'FXREUR',
+            'JPY': 'FXRJPY',
+            'GBP': 'FXRGBP',
+            'CNY': 'FXRCNY',
+            'HKD': 'FXRHKD',
+            'SGD': 'FXRSGD',
+            'CAD': 'FXRCAD',
+            'NZD': 'FXRNZD'
+        }
     
     def fetch_rates(self) -> Tuple[bool, str]:
         """
-        Fetch exchange rates from RBA website or local sample file.
+        Fetch exchange rates from RBA website or local file.
         
         Returns:
             Tuple of (success, error_message)
         """
         try:
-            if self.use_local_file and os.path.exists(self.SAMPLE_FILE_PATH):
-                # Read the first few rows to extract currency codes from headers
-                header_df = pd.read_csv(self.SAMPLE_FILE_PATH, nrows=10)
+            if self.use_local_file:
+                # Use local sample file
+                if not os.path.exists(self.local_file):
+                    return False, f"Local file not found: {self.local_file}"
                 
-                # Extract currency codes from the 'Title' row (row index 1)
-                if 'Title' in header_df.columns:
-                    # Create currency mapping
-                    self._create_currency_map(header_df)
+                # Read the CSV file with multiple header rows
+                self.rates_df = pd.read_csv(self.local_file, skiprows=0)
                 
-                # Use local sample file for data
-                df = pd.read_csv(self.SAMPLE_FILE_PATH, skiprows=10)
-                self.rates_data = self._process_rba_data(df)
-                self.last_updated = datetime.now()
+                # Extract the currency codes from the second row
+                header_row = pd.read_csv(self.local_file, nrows=1, skiprows=1).columns.tolist()
+                
+                # Create a mapping from column names to currency codes
+                col_to_currency = {}
+                for col in self.rates_df.columns[1:]:  # Skip the date column
+                    for currency, series_id in self.currency_to_series.items():
+                        if series_id in col:
+                            col_to_currency[col] = currency
+                
+                # Rename columns to use currency codes
+                rename_dict = {'Unnamed: 0': 'Date'}
+                rename_dict.update(col_to_currency)
+                self.rates_df = self.rates_df.rename(columns=rename_dict)
+                
+                # Convert date column to datetime
+                self.rates_df['Date'] = pd.to_datetime(self.rates_df['Date'])
+                
                 return True, ""
             else:
                 # Fetch from RBA website
-                response = requests.get(self.RBA_URL)
+                response = requests.get(self.rba_url)
                 if response.status_code != 200:
-                    return False, f"Failed to fetch RBA data: HTTP {response.status_code}"
+                    return False, f"Failed to fetch RBA rates: HTTP {response.status_code}"
                 
-                # Parse CSV data
-                csv_data = io.StringIO(response.text)
+                # Save to temporary file and process
+                temp_file = "temp_rba_rates.csv"
+                with open(temp_file, "wb") as f:
+                    f.write(response.content)
                 
-                # Read header rows to extract currency codes
-                header_df = pd.read_csv(csv_data, nrows=10)
-                csv_data.seek(0)  # Reset file pointer
+                # Read the CSV file with multiple header rows
+                self.rates_df = pd.read_csv(temp_file, skiprows=0)
                 
-                # Extract currency codes from the 'Title' row
-                if 'Title' in header_df.columns:
-                    # Create currency mapping
-                    self._create_currency_map(header_df)
+                # Extract the currency codes from the second row
+                header_row = pd.read_csv(temp_file, nrows=1, skiprows=1).columns.tolist()
                 
-                # Read data rows
-                df = pd.read_csv(csv_data, skiprows=10)
+                # Create a mapping from column names to currency codes
+                col_to_currency = {}
+                for col in self.rates_df.columns[1:]:  # Skip the date column
+                    for currency, series_id in self.currency_to_series.items():
+                        if series_id in col:
+                            col_to_currency[col] = currency
                 
-                # Process the dataframe to extract exchange rates
-                self.rates_data = self._process_rba_data(df)
-                self.last_updated = datetime.now()
+                # Rename columns to use currency codes
+                rename_dict = {'Unnamed: 0': 'Date'}
+                rename_dict.update(col_to_currency)
+                self.rates_df = self.rates_df.rename(columns=rename_dict)
+                
+                # Convert date column to datetime
+                self.rates_df['Date'] = pd.to_datetime(self.rates_df['Date'])
+                
+                # Clean up temporary file
+                os.remove(temp_file)
                 
                 return True, ""
-        except Exception as e:
-            return False, f"Error fetching RBA exchange rates: {str(e)}"
-    
-    def _create_currency_map(self, header_df: pd.DataFrame) -> None:
-        """
-        Create mapping from column names to currency codes based on header rows.
         
-        Args:
-            header_df: DataFrame containing header rows
-        """
-        try:
-            # Get the 'Title' row which contains currency codes
-            title_row = header_df.iloc[1]  # Second row (index 1)
-            
-            # Create mapping from column positions to currency codes
-            self.currency_map = {}
-            
-            for i, value in enumerate(title_row):
-                if pd.notna(value) and isinstance(value, str):
-                    # Extract currency code from format like 'A$1=USD'
-                    if '=' in value:
-                        currency_code = value.split('=')[1]
-                        # Map the column name (which will be 'Unnamed: i' in the data) to the currency code
-                        col_name = f"Unnamed: {i}" if i > 0 else header_df.columns[0]
-                        self.currency_map[col_name] = currency_code
         except Exception as e:
-            print(f"Error creating currency map: {str(e)}")
+            return False, f"Error fetching exchange rates: {str(e)}"
     
-    def _process_rba_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Process the raw RBA data into a usable format.
-        
-        Args:
-            df: Raw dataframe from RBA CSV
-            
-        Returns:
-            Processed dataframe with date index and currency columns
-        """
-        try:
-            # The first column is the date but has no header
-            # Rename the first column to 'Date'
-            data_rows = df.copy()
-            data_rows.rename(columns={data_rows.columns[0]: 'Date'}, inplace=True)
-            
-            # Convert the 'Date' column to datetime
-            data_rows['Date'] = pd.to_datetime(data_rows['Date'], format='%d-%b-%Y', errors='coerce')
-            
-            # Drop rows with invalid dates
-            data_rows = data_rows.dropna(subset=['Date'])
-            
-            # Set the 'Date' column as the index
-            data_rows.set_index('Date', inplace=True)
-            
-            # Convert all rate columns to numeric values
-            for col in data_rows.columns:
-                data_rows[col] = pd.to_numeric(data_rows[col], errors='coerce')
-            
-            # Rename columns based on currency map
-            if self.currency_map:
-                rename_dict = {col: self.currency_map.get(col, col) for col in data_rows.columns if col in self.currency_map}
-                data_rows.rename(columns=rename_dict, inplace=True)
-            
-            # Sort by date (newest first)
-            data_rows = data_rows.sort_index(ascending=False)
-            
-            return data_rows
-            
-        except Exception as e:
-            # If processing fails, return an empty dataframe with date index
-            print(f"Error processing RBA data: {str(e)}")
-            return pd.DataFrame(index=pd.DatetimeIndex([]))
-    
-    def get_rate(self, date: datetime, currency: str) -> Tuple[bool, str, Optional[float]]:
+    def get_rate(self, date: datetime, currency: str) -> Tuple[bool, str, float]:
         """
         Get exchange rate for a specific date and currency.
-        If rate is not available for the exact date, use the most recent past date.
         
         Args:
-            date: Date for which to get the exchange rate
-            currency: Currency code (e.g., 'USD')
-            
+            date: Date for exchange rate
+            currency: Currency code (e.g., USD, EUR)
+        
         Returns:
             Tuple of (success, error_message, rate)
         """
-        if self.rates_data is None or self.rates_data.empty:
-            success, error_msg = self.fetch_rates()
-            if not success:
-                return False, error_msg, None
+        if self.rates_df is None:
+            return False, "Exchange rates not fetched", 0.0
         
-        try:
-            # Convert currency code to RBA series ID
-            series_id = self.CURRENCY_TO_SERIES_MAP.get(currency)
-            if not series_id:
-                return False, f"Unsupported currency code: {currency}", None
-            
-            # Format the date to match the index format
-            date_str = date.strftime('%Y-%m-%d')
-            
-            # Find the exact date or the closest previous date
-            available_dates = self.rates_data.index
-            
-            # Try to find the exact date
-            if date in available_dates:
-                if series_id in self.rates_data.columns:
-                    rate = self.rates_data.loc[date, series_id]
-                    if pd.notna(rate):
-                        return True, "", float(rate)
-            
-            # If exact date not found, find the most recent past date
-            past_dates = [d for d in available_dates if d < date]
-            if past_dates:
-                most_recent = max(past_dates)
-                if series_id in self.rates_data.columns:
-                    rate = self.rates_data.loc[most_recent, series_id]
-                    if pd.notna(rate):
-                        return True, "", float(rate)
-            
-            return False, f"No exchange rate found for {currency} on or before {date_str}", None
-            
-        except Exception as e:
-            return False, f"Error retrieving exchange rate: {str(e)}", None
+        if currency == 'AUD':
+            return True, "", 1.0
+        
+        if currency not in self.rates_df.columns:
+            return False, f"Currency {currency} not found in exchange rates", 0.0
+        
+        # Find the closest date on or before the requested date
+        date_str = date.strftime('%Y-%m-%d')
+        closest_date = self.rates_df[self.rates_df['Date'] <= date_str]['Date'].max()
+        
+        if pd.isna(closest_date):
+            return False, f"No exchange rate found for {currency} on or before {date_str}", 0.0
+        
+        rate = self.rates_df.loc[self.rates_df['Date'] == closest_date, currency].values[0]
+        
+        if pd.isna(rate):
+            return False, f"Exchange rate for {currency} on {closest_date} is not available", 0.0
+        
+        return True, "", rate
     
     def convert_amount(self, amount: float, from_currency: str, to_currency: str, 
-                      date: datetime) -> Tuple[bool, str, Optional[float]]:
+                      date: datetime) -> Tuple[bool, str, float]:
         """
-        Convert an amount from one currency to another using RBA rates.
+        Convert amount from one currency to another.
         
         Args:
             amount: Amount to convert
             from_currency: Source currency code
             to_currency: Target currency code
-            date: Date for the conversion rate
-            
+            date: Date for exchange rate
+        
         Returns:
             Tuple of (success, error_message, converted_amount)
         """
         if from_currency == to_currency:
             return True, "", amount
         
-        # For conversion to AUD
-        if to_currency == 'AUD':
+        # Convert from source currency to AUD
+        if from_currency != 'AUD':
             success, error_msg, rate = self.get_rate(date, from_currency)
             if not success:
-                return False, error_msg, None
+                return False, error_msg, 0.0
             
             # FIXED: Corrected currency conversion direction
-            # RBA rates represent how many foreign currency units per 1 AUD
-            # So to convert from foreign to AUD, we divide by the rate
-            converted = amount / rate
-            return True, "", converted
+            # RBA rates are expressed as AUD per foreign currency
+            # To convert foreign currency to AUD, divide by the rate
+            amount_aud = amount * rate
+        else:
+            amount_aud = amount
         
-        # For conversion from AUD
-        elif from_currency == 'AUD':
+        # Convert from AUD to target currency
+        if to_currency != 'AUD':
             success, error_msg, rate = self.get_rate(date, to_currency)
             if not success:
-                return False, error_msg, None
+                return False, error_msg, 0.0
             
             # FIXED: Corrected currency conversion direction
-            # RBA rates represent how many foreign currency units per 1 AUD
-            # So to convert from AUD to foreign, we multiply by the rate
-            converted = amount * rate
-            return True, "", converted
-        
-        # For conversion between two non-AUD currencies
+            # RBA rates are expressed as AUD per foreign currency
+            # To convert AUD to foreign currency, divide by the rate
+            converted_amount = amount_aud / rate
         else:
-            # Convert to AUD first, then to target currency
-            success1, error_msg1, rate1 = self.get_rate(date, from_currency)
-            if not success1:
-                return False, error_msg1, None
-            
-            success2, error_msg2, rate2 = self.get_rate(date, to_currency)
-            if not success2:
-                return False, error_msg2, None
-            
-            # FIXED: Corrected currency conversion direction
-            # Convert through AUD
-            aud_amount = amount / rate1  # Convert from source to AUD
-            converted = aud_amount * rate2  # Convert from AUD to target
-            
-            return True, "", converted
+            converted_amount = amount_aud
+        
+        return True, "", converted_amount
