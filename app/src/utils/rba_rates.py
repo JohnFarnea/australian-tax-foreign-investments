@@ -11,9 +11,6 @@ from typing import Tuple, Dict, Any, Optional
 class RBAExchangeRates:
     """
     Class for fetching and processing RBA exchange rates.
-    
-    Note: Currently using hardcoded exchange rates as a temporary solution
-    due to challenges parsing the RBA CSV file format.
     """
     
     def __init__(self):
@@ -22,41 +19,89 @@ class RBAExchangeRates:
         """
         self.rates_data = None
         self.rba_url = "https://www.rba.gov.au/statistics/tables/csv/f11.1-data.csv"
+        # Corrected path to match actual file location
         self.local_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 
-                                      "sample_data", "f11.1-data.csv")
+                                      "../sample_data", "f11.1-data.csv")
         self.last_updated = None
-        # Version marker to verify code loading
-        self.version = "hardcoded-fallback-v1.0"
     
     def fetch_rates(self) -> Tuple[bool, str]:
         """
-        Create a DataFrame with hardcoded exchange rates.
-        This is a temporary solution until the CSV parsing issues are resolved.
+        Fetch exchange rates from local file.
         
         Returns:
             Tuple of (success, error_message)
         """
         try:
-            print(f"Using RBAExchangeRates version: {self.version}")
+            # Check if local file exists
+            if not os.path.exists(self.local_file):
+                return False, f"Local file not found: {self.local_file}"
             
-            # Create a DataFrame with hardcoded values for common currencies
-            # Using realistic exchange rates for AUD to foreign currencies
-            dates = pd.date_range(start='2023-01-01', end='2025-05-23')
-            data = {
-                'Date': dates,
-                'USD': [0.67] * len(dates),  # $1 AUD = $0.67 USD
-                'EUR': [0.62] * len(dates),  # $1 AUD = €0.62 EUR
-                'JPY': [95.0] * len(dates),  # $1 AUD = ¥95 JPY
-                'GBP': [0.53] * len(dates),  # $1 AUD = £0.53 GBP
-            }
+            # Read the CSV file, skipping to row 11 which contains the header
+            df = pd.read_csv(self.local_file, skiprows=10)
             
-            self.rates_data = pd.DataFrame(data)
+            # Process the dataframe to clean up column names and format data
+            df = self._process_rba_data(df)
+            
+            self.rates_data = df
             self.last_updated = datetime.now()
             
             return True, ""
         
         except Exception as e:
-            return False, f"Error creating exchange rates: {str(e)}"
+            return False, f"Error fetching exchange rates: {str(e)}"
+    
+    def _process_rba_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Process the raw RBA data into a usable format.
+        
+        Args:
+            df: Raw dataframe from RBA CSV
+            
+        Returns:
+            Processed dataframe with date index and currency columns
+        """
+        try:
+            # Rename 'Series ID' column to 'Date'
+            if 'Series ID' in df.columns:
+                df = df.rename(columns={'Series ID': 'Date'})
+            
+            # Remove 'FXR' prefix from currency columns
+            new_columns = {}
+            for col in df.columns:
+                if col.startswith('FXR') and col != 'FXR':
+                    new_columns[col] = col[3:]  # Remove 'FXR' prefix
+            
+            # Apply column renaming
+            df = df.rename(columns=new_columns)
+            
+            # Convert date column to datetime
+            df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+            
+            # Drop rows with invalid dates
+            df = df.dropna(subset=['Date'])
+            
+            # Select only relevant columns (Date and currency columns)
+            # Ignore empty columns after FXRSDR
+            relevant_cols = ['Date']
+            for col in df.columns:
+                if col != 'Date' and not col.startswith('Unnamed'):
+                    relevant_cols.append(col)
+            
+            df = df[relevant_cols]
+            
+            # Check for valid rates (not zero or NaN)
+            for col in df.columns:
+                if col != 'Date':
+                    # Replace zeros with NaN
+                    df[col] = df[col].replace(0, pd.NA)
+            
+            # Drop rows where all currency rates are NaN
+            df = df.dropna(how='all', subset=[col for col in df.columns if col != 'Date'])
+            
+            return df
+            
+        except Exception as e:
+            raise ValueError(f"Error processing RBA data: {str(e)}")
     
     def get_rate(self, date: datetime, currency: str) -> Tuple[bool, str, float]:
         """
@@ -84,23 +129,22 @@ class RBAExchangeRates:
         date_str = date.strftime('%Y-%m-%d')
         
         try:
-            closest_date = self.rates_data[self.rates_data['Date'] <= date_str]['Date'].max()
+            # Convert date to pandas Timestamp for comparison
+            pd_date = pd.Timestamp(date)
             
-            if pd.isna(closest_date):
-                # If no date is found, use the earliest available date
-                closest_date = self.rates_data['Date'].min()
-                if pd.isna(closest_date):
-                    return False, f"No exchange rate data available", 0.0
+            # Find dates on or before the requested date
+            valid_dates = self.rates_data[self.rates_data['Date'] <= pd_date]
             
-            # Get the rate for the closest date
-            rate_row = self.rates_data.loc[self.rates_data['Date'] == closest_date]
-            if rate_row.empty:
-                return False, f"No exchange rate found for {currency} on or before {date_str}", 0.0
+            if valid_dates.empty:
+                return False, f"No exchange rate data available on or before {date_str}", 0.0
             
-            rate = rate_row[currency].values[0]
+            # Get the most recent date
+            closest_date_row = valid_dates.iloc[-1]
+            rate = closest_date_row[currency]
             
-            if pd.isna(rate):
-                return False, f"Exchange rate for {currency} on {closest_date} is not available", 0.0
+            # Validate the rate
+            if pd.isna(rate) or rate == 0:
+                return False, f"Invalid exchange rate (0 or NaN) for {currency} on {closest_date_row['Date'].strftime('%Y-%m-%d')}", 0.0
             
             return True, "", float(rate)
         except Exception as e:
