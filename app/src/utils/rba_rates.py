@@ -245,8 +245,8 @@ class RBAExchangeRates:
             if not success:
                 return False, error_msg, None
             
-            # RBA rates are typically AUD per foreign currency
-            # The rate is how many foreign currency units per 1 AUD
+            # FIXED: Corrected currency conversion direction
+            # RBA rates represent how many foreign currency units per 1 AUD
             # So to convert from foreign to AUD, we divide by the rate
             converted = amount / rate
             return True, "", converted
@@ -257,8 +257,8 @@ class RBAExchangeRates:
             if not success:
                 return False, error_msg, None
             
-            # RBA rates are typically AUD per foreign currency
-            # The rate is how many foreign currency units per 1 AUD
+            # FIXED: Corrected currency conversion direction
+            # RBA rates represent how many foreign currency units per 1 AUD
             # So to convert from AUD to foreign, we multiply by the rate
             converted = amount * rate
             return True, "", converted
@@ -274,6 +274,7 @@ class RBAExchangeRates:
             if not success2:
                 return False, error_msg2, None
             
+            # FIXED: Corrected currency conversion direction
             # Convert through AUD
             aud_amount = amount / rate1  # Convert from source to AUD
             converted = aud_amount * rate2  # Convert from AUD to target

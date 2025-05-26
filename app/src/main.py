@@ -32,71 +32,81 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload_files():
     """Handle file uploads for opening balance and transactions."""
-    # Check if files were uploaded
-    if 'opening_balance' not in request.files or 'transactions' not in request.files:
-        return jsonify({'success': False, 'error': 'Both files are required'}), 400
+    # Check if transaction file was uploaded
+    if 'transactions' not in request.files:
+        return jsonify({'success': False, 'error': 'Transaction file is required'}), 400
     
-    opening_balance_file = request.files['opening_balance']
     transactions_file = request.files['transactions']
     
-    # Check if filenames are empty
-    if opening_balance_file.filename == '' or transactions_file.filename == '':
-        return jsonify({'success': False, 'error': 'Both files are required'}), 400
+    # Check if transaction filename is empty
+    if transactions_file.filename == '':
+        return jsonify({'success': False, 'error': 'Transaction file is required'}), 400
     
     try:
-        # Save files to temporary location
-        opening_balance_path = os.path.join(app.config['UPLOAD_FOLDER'], 
-                                           f"{uuid.uuid4()}_{opening_balance_file.filename}")
+        # Save transaction file to temporary location
         transactions_path = os.path.join(app.config['UPLOAD_FOLDER'], 
                                         f"{uuid.uuid4()}_{transactions_file.filename}")
-        
-        opening_balance_file.save(opening_balance_path)
         transactions_file.save(transactions_path)
-        
-        # Process opening balance file
-        success_ob, error_ob, opening_balance_df = process_opening_balance(opening_balance_path)
-        if not success_ob:
-            # Clean up files
-            os.remove(opening_balance_path)
-            os.remove(transactions_path)
-            return jsonify({'success': False, 'error': f'Opening balance file error: {error_ob}'}), 400
         
         # Process transactions file
         success_tx, error_tx, transactions_df = process_trade_transactions(transactions_path)
         if not success_tx:
-            # Clean up files
-            os.remove(opening_balance_path)
+            # Clean up file
             os.remove(transactions_path)
             return jsonify({'success': False, 'error': f'Transactions file error: {error_tx}'}), 400
         
         # Initialize tax calculator
         calculator = TaxCalculator()
-        calculator.set_opening_balance(opening_balance_df)
+        
+        # Check if opening balance file was uploaded (now optional)
+        opening_balance_df = None
+        opening_balance_path = None
+        
+        if 'opening_balance' in request.files and request.files['opening_balance'].filename != '':
+            opening_balance_file = request.files['opening_balance']
+            opening_balance_path = os.path.join(app.config['UPLOAD_FOLDER'], 
+                                              f"{uuid.uuid4()}_{opening_balance_file.filename}")
+            opening_balance_file.save(opening_balance_path)
+            
+            # Process opening balance file
+            success_ob, error_ob, opening_balance_df = process_opening_balance(opening_balance_path)
+            if not success_ob:
+                # Clean up files
+                os.remove(transactions_path)
+                if opening_balance_path:
+                    os.remove(opening_balance_path)
+                return jsonify({'success': False, 'error': f'Opening balance file error: {error_ob}'}), 400
+            
+            calculator.set_opening_balance(opening_balance_df)
+        
+        # Set transactions
         calculator.set_transactions(transactions_df)
         
         # Calculate tax
         success_calc, error_calc, results = calculator.calculate_tax()
         if not success_calc:
             # Clean up files
-            os.remove(opening_balance_path)
             os.remove(transactions_path)
+            if opening_balance_path:
+                os.remove(opening_balance_path)
             return jsonify({'success': False, 'error': f'Calculation error: {error_calc}'}), 400
         
         # Store results in session
         session['tax_results'] = results
         
         # Clean up files
-        os.remove(opening_balance_path)
         os.remove(transactions_path)
+        if opening_balance_path:
+            os.remove(opening_balance_path)
         
         return jsonify({'success': True, 'redirect': '/results'})
         
     except Exception as e:
         # Clean up files if they exist
-        if 'opening_balance_path' in locals() and os.path.exists(opening_balance_path):
-            os.remove(opening_balance_path)
         if 'transactions_path' in locals() and os.path.exists(transactions_path):
             os.remove(transactions_path)
+        if 'opening_balance_path' in locals() and opening_balance_path and os.path.exists(opening_balance_path):
+            os.remove(opening_balance_path)
         
         return jsonify({'success': False, 'error': f'Error processing files: {str(e)}'}), 500
 

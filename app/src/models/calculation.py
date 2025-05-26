@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime
 from typing import Dict, Any, Tuple, List, Optional
 
-from utils.rba_rates import RBAExchangeRates
+from src.utils.rba_rates import RBAExchangeRates
 
 
 class TaxCalculator:
@@ -44,9 +44,7 @@ class TaxCalculator:
         Returns:
             Tuple of (success, error_message, results_dict)
         """
-        if self.opening_balance is None:
-            return False, "Opening balance data not provided", {}
-        
+        # FIXED: Opening balance is now optional
         if self.transactions is None:
             return False, "Transaction data not provided", {}
         
@@ -56,14 +54,12 @@ class TaxCalculator:
             if not success:
                 return False, f"Failed to fetch exchange rates: {error_msg}", {}
             
-            # Calculate closing balance
-            closing_balance = self._calculate_closing_balance()
+            # If no opening balance, create an empty DataFrame
+            if self.opening_balance is None:
+                self.opening_balance = pd.DataFrame(columns=['Symbol', 'Quantity', 'Total Cost in AUD'])
             
-            # Calculate cost of shares sold
-            cost_of_shares_sold = self._calculate_cost_of_shares_sold(closing_balance)
-            
-            # Calculate sales in AUD
-            sales_aud, sales_details = self._calculate_sales_aud()
+            # Process transactions and calculate tax
+            closing_balance, cost_of_shares_sold, sales_aud, sales_details = self._process_transactions()
             
             # Calculate gross trading income
             gross_trading_income = sales_aud - cost_of_shares_sold
@@ -84,164 +80,155 @@ class TaxCalculator:
         except Exception as e:
             return False, f"Error calculating tax: {str(e)}", {}
     
-    def _calculate_closing_balance(self) -> pd.DataFrame:
+    def _process_transactions(self) -> Tuple[pd.DataFrame, float, float, List[Dict[str, Any]]]:
         """
-        Calculate closing balance based on opening balance and transactions.
+        Process all transactions and calculate closing balance, cost of shares sold, and sales in AUD.
         
         Returns:
-            DataFrame containing closing balance
+            Tuple of (closing_balance_df, cost_of_shares_sold, sales_aud, sales_details)
         """
-        # Start with opening balance
-        closing_balance = self.opening_balance.copy()
-        
-        # Group transactions by symbol
-        grouped_transactions = self.transactions.groupby('Symbol')
-        
-        # Update quantities based on transactions
-        for symbol, group in grouped_transactions:
-            # Find the symbol in closing balance
-            symbol_idx = closing_balance.index[closing_balance['Symbol'] == symbol].tolist()
+        # Initialize portfolio with opening balance
+        portfolio = {}
+        for _, row in self.opening_balance.iterrows():
+            symbol = row['Symbol']
+            quantity = row['Quantity']
+            cost = row['Total Cost in AUD']
             
-            if symbol_idx:
-                # Symbol exists in opening balance, update quantity
-                idx = symbol_idx[0]
-                net_quantity_change = group['Quantity'].sum()
-                closing_balance.at[idx, 'Quantity'] += net_quantity_change
-                
-                # Update cost for purchases
-                purchases = group[group['Quantity'] > 0]
-                if not purchases.empty:
-                    for _, row in purchases.iterrows():
-                        # Convert purchase value to AUD if needed
-                        if row['Currency'] != 'AUD':
-                            success, _, rate = self.rba_rates.get_rate(
-                                row['Date'], row['Currency']
-                            )
-                            if success:
-                                purchase_value_aud = row['Net Value'] * rate
-                            else:
-                                # Fallback if rate not available
-                                purchase_value_aud = row['Net Value']
-                        else:
-                            purchase_value_aud = row['Net Value']
-                        
-                        closing_balance.at[idx, 'Total Cost in AUD'] += purchase_value_aud
-            else:
-                # Symbol doesn't exist in opening balance, add new entry
-                purchases = group[group['Quantity'] > 0]
-                if not purchases.empty:
-                    total_quantity = purchases['Quantity'].sum()
-                    
-                    # Calculate total cost in AUD
-                    total_cost_aud = 0
-                    for _, row in purchases.iterrows():
-                        if row['Currency'] != 'AUD':
-                            success, _, rate = self.rba_rates.get_rate(
-                                row['Date'], row['Currency']
-                            )
-                            if success:
-                                purchase_value_aud = row['Net Value'] * rate
-                            else:
-                                purchase_value_aud = row['Net Value']
-                        else:
-                            purchase_value_aud = row['Net Value']
-                        
-                        total_cost_aud += purchase_value_aud
-                    
-                    # Add new row to closing balance
-                    new_row = pd.DataFrame({
-                        'Symbol': [symbol],
-                        'Quantity': [total_quantity],
-                        'Total Cost in AUD': [total_cost_aud]
-                    })
-                    closing_balance = pd.concat([closing_balance, new_row], ignore_index=True)
-        
-        # Remove symbols with zero quantity
-        closing_balance = closing_balance[closing_balance['Quantity'] > 0]
-        
-        return closing_balance
-    
-    def _calculate_cost_of_shares_sold(self, closing_balance: pd.DataFrame) -> float:
-        """
-        Calculate cost of shares sold.
-        
-        Formula: Cost of Shares Sold = Opening Balance + Purchases - Closing Balance
-        
-        Args:
-            closing_balance: DataFrame containing closing balance
+            if symbol not in portfolio:
+                portfolio[symbol] = []
             
-        Returns:
-            Cost of shares sold in AUD
-        """
-        # Calculate total opening balance
-        total_opening_balance = self.opening_balance['Total Cost in AUD'].sum()
+            # Add opening balance as a single lot
+            portfolio[symbol].append({
+                'quantity': quantity,
+                'cost_per_share': cost / quantity if quantity > 0 else 0,
+                'total_cost': cost
+            })
         
-        # Calculate total purchases
-        purchases = self.transactions[self.transactions['Quantity'] > 0]
-        total_purchases_aud = 0
-        
-        for _, row in purchases.iterrows():
-            if row['Currency'] != 'AUD':
-                success, _, rate = self.rba_rates.get_rate(row['Date'], row['Currency'])
-                if success:
-                    purchase_value_aud = row['Net Value'] * rate
-                else:
-                    purchase_value_aud = row['Net Value']
-            else:
-                purchase_value_aud = row['Net Value']
-            
-            total_purchases_aud += purchase_value_aud
-        
-        # Calculate total closing balance
-        total_closing_balance = closing_balance['Total Cost in AUD'].sum()
-        
-        # Calculate cost of shares sold
-        cost_of_shares_sold = total_opening_balance + total_purchases_aud - total_closing_balance
-        
-        return cost_of_shares_sold
-    
-    def _calculate_sales_aud(self) -> Tuple[float, List[Dict[str, Any]]]:
-        """
-        Calculate total sales in AUD and prepare detailed sales information.
-        
-        Returns:
-            Tuple of (total_sales_aud, sales_details)
-        """
-        sales = self.transactions[self.transactions['Quantity'] < 0]
-        total_sales_aud = 0
+        # Track cost of shares sold and sales in AUD
+        cost_of_shares_sold = 0.0
+        sales_aud = 0.0
         sales_details = []
         
-        for _, row in sales.iterrows():
-            # Convert sale value to AUD if needed
-            if row['Currency'] != 'AUD':
-                success, _, rate = self.rba_rates.get_rate(row['Date'], row['Currency'])
-                if success:
-                    sale_value_aud = abs(row['Net Value']) * rate
-                    exchange_rate = rate
+        # Process transactions in chronological order
+        sorted_transactions = self.transactions.sort_values('Date')
+        
+        for _, row in sorted_transactions.iterrows():
+            symbol = row['Symbol']
+            quantity = row['Quantity']
+            date = row['Date']
+            
+            # Ensure symbol exists in portfolio
+            if symbol not in portfolio:
+                portfolio[symbol] = []
+            
+            # Handle purchases
+            if quantity > 0:
+                # Convert purchase value to AUD
+                if row['Currency'] != 'AUD':
+                    success, _, rate = self.rba_rates.get_rate(date, row['Currency'])
+                    if success:
+                        # FIXED: Corrected currency conversion direction
+                        purchase_value_aud = row['Net Value'] / rate
+                    else:
+                        purchase_value_aud = row['Net Value']
+                else:
+                    purchase_value_aud = row['Net Value']
+                
+                # Add new lot to portfolio
+                portfolio[symbol].append({
+                    'quantity': quantity,
+                    'cost_per_share': purchase_value_aud / quantity,
+                    'total_cost': purchase_value_aud
+                })
+            
+            # Handle sales
+            elif quantity < 0:
+                quantity_to_sell = abs(quantity)
+                sale_value_aud = 0.0
+                
+                # Convert sale value to AUD for reporting
+                if row['Currency'] != 'AUD':
+                    success, _, rate = self.rba_rates.get_rate(date, row['Currency'])
+                    if success:
+                        # FIXED: Corrected currency conversion direction
+                        sale_value_aud = abs(row['Net Value']) / rate
+                        exchange_rate = rate
+                    else:
+                        sale_value_aud = abs(row['Net Value'])
+                        exchange_rate = 1.0
                 else:
                     sale_value_aud = abs(row['Net Value'])
                     exchange_rate = 1.0
-            else:
-                sale_value_aud = abs(row['Net Value'])
-                exchange_rate = 1.0
-            
-            total_sales_aud += sale_value_aud
-            
-            # Add to sales details
-            sales_details.append({
-                'Date': row['Date'].strftime('%Y-%m-%d'),
-                'Symbol': row['Symbol'],
-                'Quantity': abs(row['Quantity']),
-                'Unit Price': row['Unit Price'],
-                'Gross Value': abs(row['Total Gross Value']),
-                'Commission': abs(row['Commission']),
-                'Net Value': abs(row['Net Value']),
-                'Currency': row['Currency'],
-                'Exchange Rate': exchange_rate,
-                'Value in AUD': sale_value_aud
-            })
+                
+                # Add to total sales
+                sales_aud += sale_value_aud
+                
+                # Add to sales details
+                sales_details.append({
+                    'Date': date.strftime('%Y-%m-%d'),
+                    'Symbol': symbol,
+                    'Quantity': abs(quantity),
+                    'Unit Price': row['Unit Price'],
+                    'Gross Value': abs(row['Total Gross Value']),
+                    'Commission': abs(row['Commission']),
+                    'Net Value': abs(row['Net Value']),
+                    'Currency': row['Currency'],
+                    'Exchange Rate': exchange_rate,
+                    'Value in AUD': sale_value_aud
+                })
+                
+                # FIFO: Sell from oldest lots first
+                lots_cost = 0.0
+                remaining_to_sell = quantity_to_sell
+                
+                # Create a copy of the lots to avoid modifying during iteration
+                lots = portfolio[symbol].copy()
+                portfolio[symbol] = []
+                
+                for lot in lots:
+                    if remaining_to_sell <= 0:
+                        # No more shares to sell, keep the rest of the lot
+                        portfolio[symbol].append(lot)
+                    elif lot['quantity'] <= remaining_to_sell:
+                        # Sell entire lot
+                        lots_cost += lot['total_cost']
+                        remaining_to_sell -= lot['quantity']
+                    else:
+                        # Sell part of the lot
+                        sold_cost = lot['cost_per_share'] * remaining_to_sell
+                        lots_cost += sold_cost
+                        
+                        # Keep the remaining shares in the lot
+                        new_quantity = lot['quantity'] - remaining_to_sell
+                        new_total_cost = lot['total_cost'] - sold_cost
+                        
+                        portfolio[symbol].append({
+                            'quantity': new_quantity,
+                            'cost_per_share': new_total_cost / new_quantity,
+                            'total_cost': new_total_cost
+                        })
+                        
+                        remaining_to_sell = 0
+                
+                # Add to cost of shares sold
+                cost_of_shares_sold += lots_cost
         
-        return total_sales_aud, sales_details
+        # Create closing balance DataFrame
+        closing_balance_data = []
+        for symbol, lots in portfolio.items():
+            total_quantity = sum(lot['quantity'] for lot in lots)
+            total_cost = sum(lot['total_cost'] for lot in lots)
+            
+            if total_quantity > 0:
+                closing_balance_data.append({
+                    'Symbol': symbol,
+                    'Quantity': total_quantity,
+                    'Total Cost in AUD': total_cost
+                })
+        
+        closing_balance = pd.DataFrame(closing_balance_data)
+        
+        return closing_balance, cost_of_shares_sold, sales_aud, sales_details
     
     def get_results(self) -> Dict[str, Any]:
         """
