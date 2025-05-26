@@ -6,9 +6,9 @@ import tempfile
 import uuid
 
 # Import custom modules
-from src.utils.file_processor import process_opening_balance, process_trade_transactions
-from src.utils.rba_rates import RBAExchangeRates
-from src.models.calculation import TaxCalculator
+from utils.file_processor import process_opening_balance, process_trade_transactions
+from utils.rba_rates import RBAExchangeRates
+from models.calculation import TaxCalculator
 
 # Required configuration for deployment
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
