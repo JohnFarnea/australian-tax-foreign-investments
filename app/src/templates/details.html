@@ -122,7 +122,7 @@
                         {% endif %}
 
                         <div class="d-grid gap-2 mt-4">
-                            <a href="/results" class="btn btn-secondary">Back to Results</a>
+                            <a href="#" id="backToResults" class="btn btn-secondary">Back to Results</a>
                         </div>
                     </div>
                 </div>
@@ -138,5 +138,126 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // Store the full results data for going back to results page
+        // Ensure we're only storing JSON-serializable data
+        try {
+            // Store the original data without any modifications
+            window.fullResults = {{ full_results|tojson|safe }};
+            console.log("Results data loaded successfully:", window.fullResults);
+        } catch (e) {
+            console.error("Error storing results data:", e);
+            window.fullResults = {};
+        }
+        
+        // Immediately attach event handler to the back button
+        function attachBackButtonHandler() {
+            console.log("Attaching back button handler");
+            $('#backToResults').off('click').on('click', function(e) {
+                console.log("Back button clicked");
+                e.preventDefault();
+                
+                try {
+                    // Use the complete original results object instead of a simplified version
+                    // This ensures all data is preserved when returning to the results page
+                    console.log("Full results data:", window.fullResults);
+                    
+                    // Use the original data directly without any modifications
+                    // This ensures all calculation values are preserved
+                    var completeResults = window.fullResults;
+                    
+                    // Log the data being used
+                    console.log("Using original results data:", completeResults);
+                    
+                    // Ensure all required properties exist for the template
+                    // These are all the properties used in the results.html template
+                    var requiredProperties = [
+                        'calculation_date', 
+                        'gross_trading_income', 
+                        'sales_aud', 
+                        'cost_of_shares_sold',
+                        'opening_stock_value', 
+                        'purchases_value', 
+                        'closing_stock_value',
+                        'sales_details',
+                        'opening_balance',
+                        'purchases_details',
+                        'closing_balance'
+                    ];
+                    
+                    // Only add default values for properties that don't exist at all
+                    // This preserves all original values, even if they're zero
+                    for (var i = 0; i < requiredProperties.length; i++) {
+                        var prop = requiredProperties[i];
+                        if (completeResults[prop] === undefined) {
+                            console.warn("Missing required property: " + prop + ", adding default");
+                            
+                            // Set appropriate default based on property type
+                            if (prop === 'calculation_date') {
+                                completeResults[prop] = new Date().toISOString();
+                            } else if (prop === 'gross_trading_income') {
+                                completeResults[prop] = (completeResults.sales_aud || 0) - (completeResults.cost_of_shares_sold || 0);
+                            } else if (prop === 'cost_of_shares_sold') {
+                                completeResults[prop] = (completeResults.opening_stock_value || 0) + (completeResults.purchases_value || 0) - (completeResults.closing_stock_value || 0);
+                            } else if (prop.endsWith('_details') || prop.endsWith('_balance')) {
+                                completeResults[prop] = [];
+                            } else {
+                                completeResults[prop] = 0;
+                            }
+                        }
+                    }
+                    
+                    // Log the final structure being sent
+                    console.log("Sending results structure:", completeResults);
+                    
+                    console.log("Sending AJAX request to results page");
+                    
+                    // Send AJAX request to get results page with the data
+                    $.ajax({
+                        url: '/results',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            results: completeResults
+                        }),
+                        success: function(response) {
+                            console.log("AJAX success response received");
+                            if (response.success && response.html) {
+                                // Replace page content with results HTML
+                                document.open();
+                                document.write(response.html);
+                                document.close();
+                                // Update browser history
+                                history.pushState({}, "Results", "/results");
+                            } else {
+                                console.error("Invalid response format:", response);
+                                alert('Error: ' + (response.error || 'Failed to load results'));
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("AJAX error:", xhr, status, error);
+                            var errorMsg = 'An error occurred while loading results.';
+                            if (xhr.responseJSON && xhr.responseJSON.error) {
+                                errorMsg = xhr.responseJSON.error;
+                            }
+                            alert('Error: ' + errorMsg);
+                        }
+                    });
+                } catch (err) {
+                    console.error("Error in back button handler:", err);
+                    alert("An error occurred: " + err.message);
+                }
+            });
+        }
+        
+        // Attach handler on document ready
+        $(document).ready(function() {
+            attachBackButtonHandler();
+        });
+        
+        // Also attach handler immediately in case document is already ready
+        attachBackButtonHandler();
+    </script>
 </body>
 </html>

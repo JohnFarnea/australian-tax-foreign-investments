@@ -98,7 +98,7 @@ def upload_files():
         
         # Render the results template and return it directly
         rendered_html = render_template('results.html', results=results)
-        return jsonify({'success': True, 'html': rendered_html})
+        return jsonify({'success': True, 'html': rendered_html, 'results': results})
         
     except Exception as e:
         # Clean up files if they exist
@@ -110,20 +110,42 @@ def upload_files():
         return jsonify({'success': False, 'error': f'Error processing files: {str(e)}'}), 500
 
 
-@app.route('/results')
+@app.route('/results', methods=['GET', 'POST'])
 def results():
     """Display tax calculation results."""
-    # This route is now only used when directly accessing /results
-    # Results are passed directly in the AJAX response
-    return render_template('error.html', error='No calculation results found. Please upload files first.')
+    if request.method == 'POST' and request.is_json:
+        # Get data directly from the AJAX request
+        data = request.get_json()
+        if 'results' in data:
+            # Render the results template with the provided data
+            rendered_html = render_template('results.html', results=data['results'])
+            return jsonify({'success': True, 'html': rendered_html})
+        else:
+            return jsonify({'success': False, 'error': 'Invalid data format'}), 400
+    else:
+        # Direct access without data should show error
+        return render_template('error.html', error='No calculation results found. Please upload files first.')
 
 
-@app.route('/details/<element>')
+@app.route('/details/<element>', methods=['GET', 'POST'])
 def details(element):
     """Display detailed breakdown of a specific element."""
-    # Since we're no longer using session, this route can only be accessed
-    # via links from the results page, which should pass the necessary data
-    return render_template('error.html', error='Please calculate tax liability first and access details from the results page.')
+    if request.method == 'POST' and request.is_json:
+        # Get data directly from the AJAX request
+        data = request.get_json()
+        if 'element_data' in data and 'element_name' in data:
+            # Render the details template with the provided data
+            # Also pass the full results data for the "Back to Results" functionality
+            rendered_html = render_template('details.html', 
+                                           element_data=data['element_data'], 
+                                           element_name=data['element_name'],
+                                           full_results=data.get('full_results', {}))
+            return jsonify({'success': True, 'html': rendered_html})
+        else:
+            return jsonify({'success': False, 'error': 'Invalid data format'}), 400
+    else:
+        # Direct access without data should show error
+        return render_template('error.html', error='Please calculate tax liability first and access details from the results page.')
 
 
 @app.route('/clear')
