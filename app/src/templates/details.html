@@ -158,20 +158,10 @@
                 e.preventDefault();
                 
                 try {
-                    // Create a simplified results object with only the necessary properties
-                    var simplifiedResults = {
-                        calculation_date: window.fullResults.calculation_date || new Date().toISOString(),
-                        gross_trading_income: window.fullResults.gross_trading_income || 0,
-                        sales_aud: window.fullResults.sales_aud || 0,
-                        cost_of_shares_sold: window.fullResults.cost_of_shares_sold || 0,
-                        opening_stock_value: window.fullResults.opening_stock_value || 0,
-                        purchases_value: window.fullResults.purchases_value || 0,
-                        closing_stock_value: window.fullResults.closing_stock_value || 0,
-                        sales_details: window.fullResults.sales_details || [],
-                        opening_balance: window.fullResults.opening_balance || [],
-                        purchases_details: window.fullResults.purchases_details || [],
-                        closing_balance: window.fullResults.closing_balance || []
-                    };
+                    // Use the complete original results object instead of a simplified version
+                    // This ensures all data is preserved when returning to the results page
+                    console.log("Full results data:", window.fullResults);
+                    var completeResults = window.fullResults;
                     
                     console.log("Sending AJAX request to results page");
                     
@@ -181,7 +171,7 @@
                         type: 'POST',
                         contentType: 'application/json',
                         data: JSON.stringify({
-                            results: simplifiedResults
+                            results: completeResults
                         }),
                         success: function(response) {
                             console.log("AJAX success response received");
