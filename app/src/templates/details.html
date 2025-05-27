@@ -161,7 +161,26 @@
                     // Use the complete original results object instead of a simplified version
                     // This ensures all data is preserved when returning to the results page
                     console.log("Full results data:", window.fullResults);
-                    var completeResults = window.fullResults;
+                    
+                    // Make sure we're not sending a nested structure - extract the data at the top level
+                    // This ensures the template can access properties directly as results.property_name
+                    var completeResults = {};
+                    
+                    // Copy all properties from the original results object
+                    for (var key in window.fullResults) {
+                        if (window.fullResults.hasOwnProperty(key)) {
+                            completeResults[key] = window.fullResults[key];
+                        }
+                    }
+                    
+                    // Ensure all required properties exist
+                    if (!completeResults.hasOwnProperty('gross_trading_income')) {
+                        console.warn("Missing gross_trading_income, adding default");
+                        completeResults.gross_trading_income = completeResults.sales_aud - completeResults.cost_of_shares_sold || 0;
+                    }
+                    
+                    // Log the final structure being sent
+                    console.log("Sending results structure:", completeResults);
                     
                     console.log("Sending AJAX request to results page");
                     
