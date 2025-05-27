@@ -173,10 +173,41 @@
                         }
                     }
                     
-                    // Ensure all required properties exist
-                    if (!completeResults.hasOwnProperty('gross_trading_income')) {
-                        console.warn("Missing gross_trading_income, adding default");
-                        completeResults.gross_trading_income = completeResults.sales_aud - completeResults.cost_of_shares_sold || 0;
+                    // Ensure all required properties exist for the template
+                    // These are all the properties used in the results.html template
+                    var requiredProperties = [
+                        'calculation_date', 
+                        'gross_trading_income', 
+                        'sales_aud', 
+                        'cost_of_shares_sold',
+                        'opening_stock_value', 
+                        'purchases_value', 
+                        'closing_stock_value',
+                        'sales_details',
+                        'opening_balance',
+                        'purchases_details',
+                        'closing_balance'
+                    ];
+                    
+                    // Add default values for any missing properties
+                    for (var i = 0; i < requiredProperties.length; i++) {
+                        var prop = requiredProperties[i];
+                        if (!completeResults.hasOwnProperty(prop)) {
+                            console.warn("Missing required property: " + prop + ", adding default");
+                            
+                            // Set appropriate default based on property type
+                            if (prop === 'calculation_date') {
+                                completeResults[prop] = new Date().toISOString();
+                            } else if (prop === 'gross_trading_income') {
+                                completeResults[prop] = (completeResults.sales_aud || 0) - (completeResults.cost_of_shares_sold || 0);
+                            } else if (prop === 'cost_of_shares_sold') {
+                                completeResults[prop] = (completeResults.opening_stock_value || 0) + (completeResults.purchases_value || 0) - (completeResults.closing_stock_value || 0);
+                            } else if (prop.endsWith('_details') || prop.endsWith('_balance')) {
+                                completeResults[prop] = [];
+                            } else {
+                                completeResults[prop] = 0;
+                            }
+                        }
                     }
                     
                     // Log the final structure being sent
