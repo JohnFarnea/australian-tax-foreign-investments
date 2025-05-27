@@ -142,59 +142,84 @@
     <script>
         // Store the full results data for going back to results page
         // Ensure we're only storing JSON-serializable data
-        window.fullResults = JSON.parse({{ full_results|tojson }});
+        try {
+            window.fullResults = JSON.parse({{ full_results|tojson }});
+            console.log("Results data loaded successfully");
+        } catch (e) {
+            console.error("Error parsing results data:", e);
+            window.fullResults = {};
+        }
         
-        $(document).ready(function() {
-            // Handle back to results button click
-            $('#backToResults').on('click', function(e) {
+        // Immediately attach event handler to the back button
+        function attachBackButtonHandler() {
+            console.log("Attaching back button handler");
+            $('#backToResults').off('click').on('click', function(e) {
+                console.log("Back button clicked");
                 e.preventDefault();
                 
-                // Create a simplified results object with only the necessary properties
-                var simplifiedResults = {
-                    calculation_date: window.fullResults.calculation_date,
-                    gross_trading_income: window.fullResults.gross_trading_income,
-                    sales_aud: window.fullResults.sales_aud,
-                    cost_of_shares_sold: window.fullResults.cost_of_shares_sold,
-                    opening_stock_value: window.fullResults.opening_stock_value,
-                    purchases_value: window.fullResults.purchases_value,
-                    closing_stock_value: window.fullResults.closing_stock_value,
-                    sales_details: window.fullResults.sales_details,
-                    opening_balance: window.fullResults.opening_balance,
-                    purchases_details: window.fullResults.purchases_details,
-                    closing_balance: window.fullResults.closing_balance
-                };
-                
-                // Send AJAX request to get results page with the data
-                $.ajax({
-                    url: '/results',
-                    type: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({
-                        results: simplifiedResults
-                    }),
-                    success: function(response) {
-                        if (response.success && response.html) {
-                            // Replace page content with results HTML
-                            document.open();
-                            document.write(response.html);
-                            document.close();
-                            // Update browser history
-                            history.pushState({}, "Results", "/results");
-                        } else {
-                            alert('Error: ' + (response.error || 'Failed to load results'));
+                try {
+                    // Create a simplified results object with only the necessary properties
+                    var simplifiedResults = {
+                        calculation_date: window.fullResults.calculation_date || new Date().toISOString(),
+                        gross_trading_income: window.fullResults.gross_trading_income || 0,
+                        sales_aud: window.fullResults.sales_aud || 0,
+                        cost_of_shares_sold: window.fullResults.cost_of_shares_sold || 0,
+                        opening_stock_value: window.fullResults.opening_stock_value || 0,
+                        purchases_value: window.fullResults.purchases_value || 0,
+                        closing_stock_value: window.fullResults.closing_stock_value || 0,
+                        sales_details: window.fullResults.sales_details || [],
+                        opening_balance: window.fullResults.opening_balance || [],
+                        purchases_details: window.fullResults.purchases_details || [],
+                        closing_balance: window.fullResults.closing_balance || []
+                    };
+                    
+                    console.log("Sending AJAX request to results page");
+                    
+                    // Send AJAX request to get results page with the data
+                    $.ajax({
+                        url: '/results',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            results: simplifiedResults
+                        }),
+                        success: function(response) {
+                            console.log("AJAX success response received");
+                            if (response.success && response.html) {
+                                // Replace page content with results HTML
+                                document.open();
+                                document.write(response.html);
+                                document.close();
+                                // Update browser history
+                                history.pushState({}, "Results", "/results");
+                            } else {
+                                console.error("Invalid response format:", response);
+                                alert('Error: ' + (response.error || 'Failed to load results'));
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("AJAX error:", xhr, status, error);
+                            var errorMsg = 'An error occurred while loading results.';
+                            if (xhr.responseJSON && xhr.responseJSON.error) {
+                                errorMsg = xhr.responseJSON.error;
+                            }
+                            alert('Error: ' + errorMsg);
                         }
-                    },
-                    error: function(xhr) {
-                        console.error("AJAX error:", xhr);
-                        var errorMsg = 'An error occurred while loading results.';
-                        if (xhr.responseJSON && xhr.responseJSON.error) {
-                            errorMsg = xhr.responseJSON.error;
-                        }
-                        alert('Error: ' + errorMsg);
-                    }
-                });
+                    });
+                } catch (err) {
+                    console.error("Error in back button handler:", err);
+                    alert("An error occurred: " + err.message);
+                }
             });
+        }
+        
+        // Attach handler on document ready
+        $(document).ready(function() {
+            attachBackButtonHandler();
         });
+        
+        // Also attach handler immediately in case document is already ready
+        attachBackButtonHandler();
     </script>
 </body>
 </html>
