@@ -6,9 +6,9 @@ import tempfile
 import uuid
 
 # Import custom modules
-from utils.file_processor import process_opening_balance, process_trade_transactions
-from utils.rba_rates import RBAExchangeRates
-from models.calculation import TaxCalculator
+from src.utils.file_processor import process_opening_balance, process_trade_transactions
+from src.utils.rba_rates import RBAExchangeRates
+from src.models.calculation import TaxCalculator
 
 # Required configuration for deployment
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -91,15 +91,14 @@ def upload_files():
                 os.remove(opening_balance_path)
             return jsonify({'success': False, 'error': f'Calculation error: {error_calc}'}), 400
         
-        # Store results in session
-        session['tax_results'] = results
-        
         # Clean up files
         os.remove(transactions_path)
         if opening_balance_path:
             os.remove(opening_balance_path)
         
-        return jsonify({'success': True, 'redirect': '/results'})
+        # Render the results template and return it directly
+        rendered_html = render_template('results.html', results=results)
+        return jsonify({'success': True, 'html': rendered_html})
         
     except Exception as e:
         # Clean up files if they exist
@@ -114,38 +113,23 @@ def upload_files():
 @app.route('/results')
 def results():
     """Display tax calculation results."""
-    # Check if results exist in session
-    if 'tax_results' not in session:
-        return render_template('error.html', error='No calculation results found. Please upload files first.')
-    
-    results = session['tax_results']
-    return render_template('results.html', results=results)
+    # This route is now only used when directly accessing /results
+    # Results are passed directly in the AJAX response
+    return render_template('error.html', error='No calculation results found. Please upload files first.')
 
 
 @app.route('/details/<element>')
 def details(element):
     """Display detailed breakdown of a specific element."""
-    # Check if results exist in session
-    if 'tax_results' not in session:
-        return render_template('error.html', error='No calculation results found. Please upload files first.')
-    
-    results = session['tax_results']
-    
-    # Check if the requested element exists in results
-    if element not in results:
-        return render_template('error.html', error=f'Element {element} not found in results.')
-    
-    element_data = results[element]
-    element_name = element.replace('_', ' ').title()
-    
-    return render_template('details.html', element_name=element_name, element_data=element_data)
+    # Since we're no longer using session, this route can only be accessed
+    # via links from the results page, which should pass the necessary data
+    return render_template('error.html', error='Please calculate tax liability first and access details from the results page.')
 
 
 @app.route('/clear')
 def clear_session():
-    """Clear session data."""
-    session.clear()
-    return jsonify({'success': True})
+    """Redirect to home page."""
+    return redirect('/')
 
 
 if __name__ == '__main__':
