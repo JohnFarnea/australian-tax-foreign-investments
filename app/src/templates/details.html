@@ -122,7 +122,7 @@
                         {% endif %}
 
                         <div class="d-grid gap-2 mt-4">
-                            <a href="/results" class="btn btn-secondary">Back to Results</a>
+                            <a href="#" id="backToResults" class="btn btn-secondary">Back to Results</a>
                         </div>
                     </div>
                 </div>
@@ -138,5 +138,46 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // Store the full results data for going back to results page
+        window.fullResults = {{ full_results|tojson }};
+        
+        $(document).ready(function() {
+            // Handle back to results button click
+            $('#backToResults').on('click', function(e) {
+                e.preventDefault();
+                
+                // Send AJAX request to get results page with the data
+                $.ajax({
+                    url: '/results',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        results: window.fullResults
+                    }),
+                    success: function(response) {
+                        if (response.success && response.html) {
+                            // Replace page content with results HTML
+                            document.open();
+                            document.write(response.html);
+                            document.close();
+                            // Update browser history
+                            history.pushState({}, "Results", "/results");
+                        } else {
+                            alert('Error: ' + (response.error || 'Failed to load results'));
+                        }
+                    },
+                    error: function(xhr) {
+                        var errorMsg = 'An error occurred while loading results.';
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMsg = xhr.responseJSON.error;
+                        }
+                        alert('Error: ' + errorMsg);
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>

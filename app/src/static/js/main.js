@@ -97,7 +97,8 @@ $(document).ready(function() {
                 contentType: 'application/json',
                 data: JSON.stringify({
                     element_name: elementName,
-                    element_data: elementData
+                    element_data: elementData,
+                    full_results: window.results // Pass the full results for "Back to Results" functionality
                 }),
                 success: function(response) {
                     if (response.success && response.html) {
