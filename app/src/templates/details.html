@@ -143,10 +143,11 @@
         // Store the full results data for going back to results page
         // Ensure we're only storing JSON-serializable data
         try {
-            window.fullResults = JSON.parse({{ full_results|tojson }});
-            console.log("Results data loaded successfully");
+            // Store the original data without any modifications
+            window.fullResults = {{ full_results|tojson|safe }};
+            console.log("Results data loaded successfully:", window.fullResults);
         } catch (e) {
-            console.error("Error parsing results data:", e);
+            console.error("Error storing results data:", e);
             window.fullResults = {};
         }
         
@@ -162,16 +163,12 @@
                     // This ensures all data is preserved when returning to the results page
                     console.log("Full results data:", window.fullResults);
                     
-                    // Make sure we're not sending a nested structure - extract the data at the top level
-                    // This ensures the template can access properties directly as results.property_name
-                    var completeResults = {};
+                    // Use the original data directly without any modifications
+                    // This ensures all calculation values are preserved
+                    var completeResults = window.fullResults;
                     
-                    // Copy all properties from the original results object
-                    for (var key in window.fullResults) {
-                        if (window.fullResults.hasOwnProperty(key)) {
-                            completeResults[key] = window.fullResults[key];
-                        }
-                    }
+                    // Log the data being used
+                    console.log("Using original results data:", completeResults);
                     
                     // Ensure all required properties exist for the template
                     // These are all the properties used in the results.html template
@@ -189,10 +186,11 @@
                         'closing_balance'
                     ];
                     
-                    // Add default values for any missing properties
+                    // Only add default values for properties that don't exist at all
+                    // This preserves all original values, even if they're zero
                     for (var i = 0; i < requiredProperties.length; i++) {
                         var prop = requiredProperties[i];
-                        if (!completeResults.hasOwnProperty(prop)) {
+                        if (completeResults[prop] === undefined) {
                             console.warn("Missing required property: " + prop + ", adding default");
                             
                             // Set appropriate default based on property type
