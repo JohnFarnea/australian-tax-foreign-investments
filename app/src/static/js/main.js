@@ -19,8 +19,17 @@ $(document).ready(function() {
             processData: false,
             success: function(response) {
                 if (response.success) {
-                    // Redirect to results page
-                    window.location.href = response.redirect;
+                    if (response.html) {
+                        // Replace page content with results HTML
+                        document.open();
+                        document.write(response.html);
+                        document.close();
+                        // Update browser history so back button works correctly
+                        history.pushState({}, "Results", "/results");
+                    } else if (response.redirect) {
+                        // Fallback to redirect if html not provided
+                        window.location.href = response.redirect;
+                    }
                 } else {
                     // Show error message
                     alert('Error: ' + response.error);
