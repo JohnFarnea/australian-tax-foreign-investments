@@ -91,13 +91,16 @@ def upload_files():
                 os.remove(opening_balance_path)
             return jsonify({'success': False, 'error': f'Calculation error: {error_calc}'}), 400
         
+        # Store results in session for the results page to access
+        session['tax_results'] = results
+        
         # Clean up files
         os.remove(transactions_path)
         if opening_balance_path:
             os.remove(opening_balance_path)
         
-        # Return results directly instead of storing in session
-        return render_template('results.html', results=results)
+        # Return JSON response for the frontend to handle
+        return jsonify({'success': True, 'redirect': '/results'})
         
     except Exception as e:
         # Clean up files if they exist
@@ -106,27 +109,43 @@ def upload_files():
         if 'opening_balance_path' in locals() and opening_balance_path and os.path.exists(opening_balance_path):
             os.remove(opening_balance_path)
         
-        return render_template('error.html', error=f'Error processing files: {str(e)}')
+        return jsonify({'success': False, 'error': f'Error processing files: {str(e)}'}), 500
 
 
 @app.route('/results')
 def results():
     """Display tax calculation results."""
-    # If accessed directly without calculation, show error
-    return render_template('error.html', error='No calculation results found. Please upload files first.')
+    # Check if results exist in session
+    if 'tax_results' not in session:
+        return render_template('error.html', error='No calculation results found. Please upload files first.')
+    
+    results = session['tax_results']
+    return render_template('results.html', results=results)
 
 
 @app.route('/details/<element>')
 def details(element):
     """Display detailed breakdown of a specific element."""
-    # Since we're no longer using session, this route can only be accessed
-    # via links from the results page, which should pass the necessary data
-    return render_template('error.html', error='Please calculate tax liability first and access details from the results page.')
+    # Check if results exist in session
+    if 'tax_results' not in session:
+        return render_template('error.html', error='No calculation results found. Please upload files first.')
+    
+    results = session['tax_results']
+    
+    # Check if the requested element exists in results
+    if element not in results:
+        return render_template('error.html', error=f'Element {element} not found in results.')
+    
+    element_data = results[element]
+    element_name = element.replace('_', ' ').title()
+    
+    return render_template('details.html', element_name=element_name, element_data=element_data)
 
 
 @app.route('/clear')
 def clear_session():
-    """Redirect to home page."""
+    """Clear session data."""
+    session.clear()
     return redirect('/')
 
 
